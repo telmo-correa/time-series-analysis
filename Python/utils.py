@@ -1,8 +1,13 @@
-## Plot monthly values, with cyclic colors
+import numpy as np
+
+from statsmodels.nonparametric.smoothers_lowess import lowess
+import statsmodels.api as sm
 
 from matplotlib import cm
 from matplotlib.colors import to_hex
 import matplotlib.pyplot as plt
+
+## Plot monthly values, with cyclic colors
 
 def plot_monthly(dates, values, xlabel, ylabel):
     colormap = cm.get_cmap('twilight')
@@ -21,11 +26,6 @@ def plot_monthly(dates, values, xlabel, ylabel):
 
 # Generate regression summary plots, mimicking R's plot(lm(...))
 # Adapted from: https://towardsdatascience.com/going-from-r-to-python-linear-regression-diagnostic-plots-144d1c4aa5a
-
-import numpy as np
-from statsmodels.nonparametric.smoothers_lowess import lowess
-import statsmodels.api as sm
-
 
 def get_top_n(model, n):
     return np.argpartition(model.resid, -n)[:n]
