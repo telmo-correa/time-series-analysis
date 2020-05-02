@@ -1,5 +1,6 @@
 require(ggplot2)
 require(zoo)
+require(tseries)
 
 palette = c('#e2d9e2', '#b3c6ce', '#7ba1c2', '#6276ba',
  '#5e43a5', '#4e186f', '#2f1436', '#581647',
