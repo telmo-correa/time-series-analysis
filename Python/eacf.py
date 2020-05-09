@@ -46,7 +46,7 @@ def eacf(z, ar_max=7, ma_max=13, display=True):
     
     def ceascf(m, cov1, nar, ncol, count, ncov, z, zm):
         result = np.zeros(nar+1)
-        result[0] = cov1[ncov + count - 2]
+        result[0] = cov1[ncov + count - 1]
         for i in range(1, nar+1):
             A = np.empty((len(z) - i, i+1))
             A[:, 0] = z[i:]
@@ -87,6 +87,7 @@ def eacf(z, ar_max=7, ma_max=13, display=True):
     for i in range(nma):
         work = work - 1
         symbol[:, i] = np.where(np.abs(eacfm[:, i]) > 2/np.sqrt(work), 'x', 'o')
+    
     symbol = pd.DataFrame(symbol)
     if display:
         print('AR / MA')
