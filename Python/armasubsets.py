@@ -79,13 +79,16 @@ def _exhaustive_best_subset(X, y, nbest=8, score="bic"):
     
     assert score in ["bic", "aic"], "Unknown score"
     assert nbest > 0, "nbest must be positive"
+      
+    # Add constant
+    Xc = add_constant(X).rename(columns={'const': '(Intercept)'})
     
     def score_iterable():
         def get_bic(feature_subset):
-            return OLS(y, add_constant(X[list(feature_subset)])).fit().bic
-        
+            return OLS(y, Xc[feature_subset]).fit().bic
+
         def get_aic(feature_subset):
-            return OLS(y, add_constant(X[list(feature_subset)])).fit().aic
+            return OLS(y, Xc[feature_subset]).fit().aic
         
         get_score = get_bic if score == "bic" else get_aic
 
@@ -96,7 +99,8 @@ def _exhaustive_best_subset(X, y, nbest=8, score="bic"):
             return chain.from_iterable(combinations(s, r) for r in range(len(s)+1))
 
         for k in powerset(X.columns):
-            yield get_score(k), ('(Intercept)', *k)
+            kp = ['(Intercept)', *k]
+            yield get_score(kp), kp
             
     return heapq.nsmallest(nbest, score_iterable())
 
@@ -107,11 +111,14 @@ def _forward_best_subset(X, y, nbest=8, beamwidth=40, score="bic"):
     assert nbest > 0, "nbest must be positive"
     beamwidth = max(beamwidth, nbest)
     
+    # Add constant
+    Xc = add_constant(X).rename(columns={'const': '(Intercept)'})
+    
     def get_bic(feature_subset):
-        return -OLS(y, add_constant(X[list(feature_subset)])).fit().bic
+        return -OLS(y, Xc[feature_subset]).fit().bic
 
     def get_aic(feature_subset):
-        return -OLS(y, add_constant(X[list(feature_subset)])).fit().aic
+        return -OLS(y, Xc[feature_subset]).fit().aic
 
     get_score = get_bic if score == "bic" else get_aic
     
@@ -121,7 +128,7 @@ def _forward_best_subset(X, y, nbest=8, beamwidth=40, score="bic"):
     visited = set()
     
     def get_pair(k):
-        return get_score(k), k
+        return get_score(['(Intercept)', *k]), k
     
     k = ()
     heapq.heappush(heap, get_pair(k))
@@ -147,7 +154,7 @@ def _forward_best_subset(X, y, nbest=8, beamwidth=40, score="bic"):
         if not modified:
             break
             
-    return heapq.nsmallest(nbest, [(-x, ('(Intercept)', *y)) for x, y in heap])
+    return heapq.nsmallest(nbest, [(-x, ['(Intercept)', *y]) for x, y in heap])
 
 
 def _backward_best_subset(X, y, nbest=8, beamwidth=40, score="bic"):
@@ -156,11 +163,14 @@ def _backward_best_subset(X, y, nbest=8, beamwidth=40, score="bic"):
     assert nbest > 0, "nbest must be positive"
     beamwidth = max(beamwidth, nbest)
     
+    # Add constant
+    Xc = add_constant(X).rename(columns={'const': '(Intercept)'})
+    
     def get_bic(feature_subset):
-        return -OLS(y, add_constant(X[list(feature_subset)])).fit().bic
+        return -OLS(y, Xc[feature_subset]).fit().bic
 
     def get_aic(feature_subset):
-        return -OLS(y, add_constant(X[list(feature_subset)])).fit().aic
+        return -OLS(y, Xc[feature_subset]).fit().aic
 
     get_score = get_bic if score == "bic" else get_aic
     
@@ -170,7 +180,7 @@ def _backward_best_subset(X, y, nbest=8, beamwidth=40, score="bic"):
     visited = set()
     
     def get_pair(k):
-        return get_score(k), k
+        return get_score(['(Intercept)', *k]), k
     
     k = tuple(features)
     heapq.heappush(heap, get_pair(k))
@@ -196,7 +206,7 @@ def _backward_best_subset(X, y, nbest=8, beamwidth=40, score="bic"):
         if not modified:
             break
             
-    return heapq.nsmallest(nbest, [(-x, ('(Intercept)', *y)) for x, y in heap])
+    return heapq.nsmallest(nbest, [(-x, ['(Intercept)', *y]) for x, y in heap])
 
 
 def _plot_results(results, labels, score):
@@ -238,6 +248,6 @@ def armasubsets(y, nar, nma, y_name = "Y", score="bic", exploration="auto", nbes
     else:
         results = _backward_best_subset(X, y, score=score, nbest=nbest, beamwidth=beamwidth)
     if plot:
-        labels = np.r_[["(Intercept)"], X.columns]
+        labels = ['(Intercept)', *X.columns]
         _plot_results(results, labels, score)
     return results

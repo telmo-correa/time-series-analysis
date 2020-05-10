@@ -4,5 +4,7 @@ Repository for self study on Jonathan, D. Cryer, and Chan Kung-Sik. "Time series
 
 Exercises are conducted on both R and Python for language practice purposes. 
 
+### Implementation notes
 - Regression diagnostic graphs, in the same style as R, are implemented in `Python/utils.py`.
-- EACF is reimplemented in Python in `Python/eacf.py`.  Note that it uses statsmodels' ACF, rather than R, which may lead to small numerical computation differences.
+- `eacf`, from the TSA library, is reimplemented in Python in `Python/eacf.py`.  Note that it uses statsmodels' ACF, rather than R, which may lead to small numerical computation differences.
+- `armasubsets`, from the TSA library, is reimplemented in Python in `Python/armasubsets.py`.  It uses its own subset search code, rather than relying on R's `regsubsets` library.
