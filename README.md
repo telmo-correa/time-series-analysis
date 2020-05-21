@@ -5,7 +5,7 @@ Repository for self study on Jonathan, D. Cryer, and Chan Kung-Sik. "Time series
 Exercises are conducted on both R and Python for language practice purposes. 
 
 ### Notable packages used
-- R: TSA (mostly reimplemented), ggplot, zoo, tseries
+- R: TSA (mostly reimplemented), ggplot, zoo, tseries, rugarch
 - Python: statsmodels, scipy, arch
 
 ### Implementation notes
