@@ -5,7 +5,8 @@ Based on version at https://github.com/SurajGupta/r-source/blob/master/src/libra
 """ 
 
 import numpy as np
-from scipy import stats, signal, fft, ndimage
+from scipy import stats, signal, fft
+from statsmodels.regression.linear_model import yule_walker
 
 import matplotlib.pyplot as plt
 
@@ -60,7 +61,8 @@ def spec_ci(df, coverage=0.95):
     
     return df / stats.chi2.ppf([upper_quantile, lower_quantile], df=df)
 
-def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True, demean=False, detrend=True, plot=True, ax=None):
+def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True, demean=False, detrend=True, 
+               plot=True, **kwargs):
     """
     Computes the spectral density estimate using a periodogram.  Optionally, it also:
     - Uses a provided kernel window, or a sequence of spans for convoluted modified Daniell kernels.
@@ -218,15 +220,70 @@ def spec_pgram(x, xfreq=1, spans=None, kernel=None, taper=0.1, pad=0, fast=True,
         'taper': taper,
         'pad': pad,
         'detrend': detrend,
-        'demean': demean
+        'demean': demean,
+        'method': 'Raw Periodogram' if kernel is None else 'Smoothed Periodogram'
     }
     
     if plot:
-        plot_spec(results, coverage=0.95, ax=ax)
+        plot_spec(results, coverage=0.95, **kwargs)
     
     return results
 
-def plot_spec(spec_res, coverage=None, ax=None):
+def spec_ar(x, x_freq=1, n_freq=500, order_max=None, plot=True, **kwargs):
+    x = np.r_[x]
+    N = len(x)
+    if order_max is None:
+        order_max = min(N - 1, int(np.floor(10 * np.log10(N))))
+
+    # Use Yule-Walker to find best AR model via AIC
+    def aic(sigma2, df_model, nobs):
+        return np.log(sigma2) + 2 * (1 + df_model) / nobs
+    
+    N = len(x)
+    best_results = None
+    
+    for lag in range(order_max+1):
+        ar, sigma = yule_walker(x, order=lag, method='mle')
+        model_aic = aic(sigma2=sigma**2, df_model=lag, nobs=N-lag)
+        if best_results is None or model_aic < best_results['aic']:
+            best_results = {
+                'aic': model_aic,
+                'order': lag,
+                'ar': ar,
+                'sigma2': sigma**2
+            }
+        
+    order = best_results['order']
+    freq = np.arange(0, n_freq) / (2 * (n_freq - 1))
+      
+    if order >= 1:
+        ar, sigma2 = best_results['ar'], best_results['sigma2']
+    
+        outer_xy = np.outer(freq, np.arange(1, order+1))
+        cs = np.cos(2 * np.pi * outer_xy) @ ar
+        sn = np.sin(2 * np.pi * outer_xy) @ ar
+
+        spec = sigma2 / (x_freq*((1 - cs)**2 + sn**2))
+        
+    else:
+        sigma2 = best_results['sigma2']
+        spec = (sigma2 / x_freq) * np.ones(len(freq))
+    
+    results = {
+        'freq': freq,
+        'spec': spec,
+        'coh': None,
+        'phase': None,
+        'n.used': len(x),
+        'method': 'AR(' + str(order) + ') spectrum'
+    } 
+    
+    if plot:
+        plot_spec(results, coverage=None, **kwargs)
+    
+    return results
+
+def plot_spec(spec_res, coverage=None, ax=None, title=None):
     """Convenience plotting method, also includes confidence cross in the same style as R.
     
     Note that the location of the cross is irrelevant; only width and height matter."""
@@ -241,6 +298,12 @@ def plot_spec(spec_res, coverage=None, ax=None):
         ax = plt.gca()
     
     ax.plot(f, Pxx, color='C0')
+    ax.set_xlabel('Frequency')
+    ax.set_ylabel('Log Spectrum')
+    ax.set_yscale('log')
     if coverage is not None:
         ax.plot(np.mean(conf_x) * np.r_[1, 1], conf_y * ci, color='red')
         ax.plot(conf_x, np.mean(conf_y) * np.r_[1, 1], color='red')
+
+    ax.set_title(spec_res['method'] if title is None else title)
+        
