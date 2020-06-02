@@ -1,8 +1,11 @@
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+from statsmodels.tsa.stattools import acf
+from scipy.stats import chi2
 
 import matplotlib.pyplot as plt
+
 
 def tar_display(obj):
     p1, p2, d = obj['p1'], obj['p2'], obj['d']
@@ -354,7 +357,7 @@ def tar(y, p1, p2, d, threshold=None, method="MAIC", is_constant1=True, is_const
     qr1 = sm.OLS(y_regime1, x_regime1).fit()
     
     dxy1 = xy1[:, subset1]
-    dxy1[(thdindex+1):] = 0
+    dxy1[thdindex:] = 0
     
     R2 = np.linalg.qr(xy2[thdindex:m, :-2], mode='r')
     
@@ -414,3 +417,83 @@ def tar(y, p1, p2, d, threshold=None, method="MAIC", is_constant1=True, is_const
         tar_display(result)
     
     return result
+
+
+def gBox_tar(fitted_model, lags=None, x=None, plot=True, **kwargs):
+    
+    def box_ljung(x, xy1, xy2, nlag=1):
+        
+        def zlag(x, d=1):
+            return np.array(pd.Series(x).shift(d))
+
+        x = x / np.std(x, ddof=1)
+
+        em_t = np.empty((nlag, len(x)))
+        for i in range(nlag):
+            em_t[i] = zlag(x, i+1)
+
+        em_t[np.isnan(em_t)] = 0
+
+        n = xy1.shape[0]
+
+        cc = np.concatenate((xy1, xy2), axis=1)
+        H = em_t @ cc
+        denom = np.empty_like(H)
+        for i in range(nlag):
+            denom[i] = n - i - 1
+        H = H/denom
+
+        D1 = np.linalg.inv(xy1.T @ xy1 / n)
+        D2 = np.linalg.inv(xy2.T @ xy2 / n)
+        d1_len = D1.shape[0]
+        d2_len = D2.shape[0]
+
+        D = np.zeros((d1_len + d2_len, d1_len + d2_len))
+        D[:d1_len, :d1_len] = D1
+        D[-d2_len:, -d2_len:] = D2
+
+        temp = em_t - H @ D @ cc.T
+        Sigma = temp @ temp.T / n
+        eigv, eigm = np.linalg.eig(Sigma)
+
+        eigv[eigv < 1e-6 * max(eigv)] = 0
+        eigv[eigv > 0] = np.sqrt(1/eigv[eigv > 0])
+
+        acf1 = acf(x, nlags=nlag, fft=True)[1:]
+        a = np.diag(eigv) @ eigm.T @ acf1
+        Q = n * np.sum(a**2)
+        df = np.sum(eigv > 0)
+        p_value = 1 - chi2.cdf(x=Q, df=df)
+
+        return {
+            'Q': Q,
+            'p_value': p_value,
+            'Q1': n * np.sum(acf1)**2
+        }
+    
+    
+    if x is None:
+        x = fitted_model['std_res']
+    if lags is None:
+        lags = np.arange(1, 21)
+        
+    get_p_value = lambda lag : box_ljung(x, fitted_model['dxy1'], fitted_model['dxy2'], lag)['p_value']
+    
+    results = np.empty(len(lags))
+    for i, lag in enumerate(lags):
+        results[i] = get_p_value(lag)
+    
+    if plot:
+        ax = plt.gca()
+        kwargs = {'marker': 'o', 'markersize': 5, 'linestyle': None}
+        ax.margins(.05)
+        ax.plot(lags, results, **kwargs)
+        ax.set_ylim(-0.05, 1.05)
+        ax.axhline(0.05, xmin=np.min(lags)-1, xmax=np.max(lags)+1, color='red', linestyle=':')
+        ax.set_xlabel('Lag')
+        ax.set_ylabel('P-value')
+    
+    return {
+        'lags': lags,
+        'results': results
+    }
