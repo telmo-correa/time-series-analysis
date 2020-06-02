@@ -497,3 +497,96 @@ def gBox_tar(fitted_model, lags=None, x=None, plot=True, **kwargs):
         'lags': lags,
         'results': results
     }
+
+
+def tar_sim(obj, Phi1=None, Phi2=None, thd=None, d=None, ntransient=500, n=500, xstart=None):    
+    constant1 = obj['qr1'].params[0]
+    p1, p2 = obj['p1'], obj['p2']
+    d = obj['d']
+    p = max(p1, p2)
+    mpd = max(p, d)
+    Phi1 = np.zeros(mpd + 1)
+    Phi2 = np.zeros(mpd + 1)
+
+    if obj['is_constant1']:
+        Phi1a = obj['qr1'].params
+    else:
+        Phi1a = np.r_[0, obj['qr1'].params]
+
+    if obj['is_constant2']:
+        Phi2a = obj['qr2'].params
+    else:
+        Phi2a = np.r_[0, obj['qr2'].params]
+
+    Phi1[:len(Phi1a)] = Phi1a
+    Phi2[:len(Phi2a)] = Phi2a
+
+    sigma1 = np.sqrt(obj['rms1'])
+    sigma2 = np.sqrt(obj['rms2'])
+
+    thd = obj['thd']
+    if xstart is None:
+        xstart = obj['y'][::-1][:mpd][::-1]
+        
+    x = np.zeros(mpd + ntransient + n)
+    x[:mpd] = xstart
+    
+    e = np.random.randn(ntransient + n)
+    for i in range(mpd, mpd + ntransient + n):
+        x_lookup = np.r_[1, x[(i-mpd):i][::-1]]
+        x[i] = x_lookup @ Phi1 + sigma1 * e[i - mpd] if x_lookup[d] <= thd else x_lookup @ Phi2 + sigma2 * e[i - mpd]
+    
+    return x[-n:]
+
+
+def tar_predict(obj, n_ahead=1, n_sim=1000, alpha=0.05):
+    constant1 = obj['qr1'].params[0]
+    p1, p2, d = obj['p1'], obj['p2'], obj['d']
+    p = max(p1, p2)
+    mpd = max(p, d)
+    Phi1 = np.zeros(mpd + 1)
+    Phi2 = np.zeros(mpd + 1)
+
+    if obj['is_constant1']:
+        Phi1a = obj['qr1'].params
+    else:
+        Phi1a = np.r_[0, obj['qr1'].params]
+
+    if obj['is_constant2']:
+        Phi2a = obj['qr2'].params
+    else:
+        Phi2a = np.r_[0, obj['qr2'].params]
+
+    Phi1[:len(Phi1a)] = Phi1a
+    Phi2[:len(Phi2a)] = Phi2a
+
+    sigma1 = np.sqrt(obj['rms1'])
+    sigma2 = np.sqrt(obj['rms2'])
+
+    thd = obj['thd']
+    x_start = obj['y'][-max(p1, p2, d):]
+    
+    pred_matrix = np.empty((n_sim, n_ahead))
+    xx = np.zeros(mpd + n_ahead)
+    xx[:mpd] = x_start
+    for i in range(n_sim):
+        e = np.random.randn(n_ahead)
+        for j in range(mpd, mpd + n_ahead):
+            x_lookup = np.r_[1, xx[(j-mpd):j][::-1]]
+            xx[j] = x_lookup @ Phi1 + sigma1 * e[j - mpd] if x_lookup[d] <= thd else x_lookup @ Phi2 + sigma2 * e[j - mpd]
+        
+        pred_matrix[i] = xx[-n_ahead:]
+    
+    if alpha is None:
+        return {
+            'pred_matrix': pred_matrix,
+            'fit': np.quantile(pred_matrix, 0.5, axis=0)
+        }
+    
+    q = np.quantile(pred_matrix, [0.5, alpha / 2, 1 - alpha/2], axis=0)
+    return {
+        'pred_matrix': pred_matrix,
+        'fit': q[0],
+        'lower': q[1],
+        'upper': q[2]
+    }
