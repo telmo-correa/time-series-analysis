@@ -5,8 +5,8 @@ from statsmodels.nonparametric.kernel_regression import KernelReg
 import matplotlib.pyplot as plt
 
 
-def lagplot(x, n_lags=6, method="locfit"):
-    assert method in ["locfit", "glm", "both"], "method must be locfit, glm, or both"
+def lagplot(x, n_lags=6, method="lowess"):
+    assert method in ["lowess", "glm", "both"], "method must be lowess, glm, or both"
     
     def get_glm_fit(x_endog, x_exog, n_steps=501):
         x_min, x_max = min(x_exog), max(x_exog)
@@ -17,12 +17,9 @@ def lagplot(x, n_lags=6, method="locfit"):
 
         return x_pred, y_pred
 
-    def get_loc_fit(x_endog, x_exog, n_steps=501):
-        x_min, x_max = min(x_exog), max(x_exog)
-        x_pred = (np.arange(n_steps) / n_steps) * (x_max - x_min) + x_min
-        y_pred, _ = KernelReg(x_endog, x_exog, var_type='c').fit(x_pred)
-
-        return x_pred, y_pred
+    def get_loc_fit(x_endog, x_exog):
+        res = sm.nonparametric.lowess(x_endog, x_exog, return_sorted=True)
+        return res[:, 0], res[:, 1]
     
     n_half = int(np.ceil(n_lags/2))
     
@@ -38,7 +35,7 @@ def lagplot(x, n_lags=6, method="locfit"):
             x_pred, y_pred = get_glm_fit(x_endog, x_exog)
             ax.plot(x_pred, y_pred, color='darkgreen')
         
-        if method in ["locfit", "both"]:
+        if method in ["lowess", "both"]:
             x_pred, y_pred = get_loc_fit(x_endog, x_exog)
             ax.plot(x_pred, y_pred, color='red')
 
