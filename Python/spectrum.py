@@ -239,7 +239,6 @@ def spec_ar(x, x_freq=1, n_freq=500, order_max=None, plot=True, **kwargs):
     def aic(sigma2, df_model, nobs):
         return np.log(sigma2) + 2 * (1 + df_model) / nobs
     
-    N = len(x)
     best_results = None
     
     for lag in range(order_max+1):
